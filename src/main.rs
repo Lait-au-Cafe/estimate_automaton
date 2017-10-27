@@ -11,22 +11,6 @@ use regex::Regex;
 
 
 type Stack<T> = Vec<T>;
-//struct Stack<T> {
-//    content: VecDeque<T>
-//}
-//impl<T> Stack<T> {
-//    fn new() -> Stack<T> {
-//        return Stack{content: VecDeque::new()};
-//    }
-//    fn push(&mut self, value: T) {
-//        self.content.push_back(value);
-//        return ;
-//    }
-//
-//    fn pop(&mut self) -> Option<T> {
-//        return self.content.pop_back();
-//    }
-//}
 
 struct Node {
 //    num: usize,
@@ -38,19 +22,23 @@ impl Node {
         let mut hm = HashMap::new();
         return Node{state: s, path: hm};
     }
-    fn getPath(&self, c: char) -> Option<usize> {
+    fn get_path(&self, c: char) -> Option<usize> {
         return self.path.get(&c).and_then(|i| Some(*i));
     }
+    fn set_path(&mut self, c: char, dest: usize) {
+        if self.path.insert(c, dest).is_some() {
+            println!("PathError: the path already exists. ");
+        }
+    }
 	
-	fn searchDestNode(
+	fn scan(
 		stat: char, 
-		ptr: &mut usize, 
-		list: &mut Vec<Node>
+		ptr: &mut i32, 
+		list: &Vec<Node>
 	) {
 
 		while *ptr >= 0 {
-			if list[*ptr].state == stat {
-				//dest = Some(list[*ptr]);
+			if list[*ptr as usize].state == stat {
 				break;
 			}
 			*ptr -= 1;
@@ -64,45 +52,56 @@ struct Input {
     output: char,           // オートマトンの出力
     link: Stack<Link>
 }
-fn LoadData(filename: &str) -> Result<Vec<Input>, String> {
-    // open file
-    let path = Path::new(&filename);
-    let display = path.display();
-    let file = File::open(&path)
-        .map_err(|e|format!("Cannot open {}", display).to_owned() 
-            + " : " + e.description())?;
-
-    // read file
-    let mut reader = BufReader::new(file);
-    let mut buf = Vec::new();
-    reader.read_to_end(&mut buf)
-        .map_err(|e|"Cannot read file : ".to_owned() + e.description())?;
-    
-    // convert
-    let mut raw = String::from_utf8(buf)
-        .map_err(|e|e.description().to_owned())?;
-
-    let mut list: Vec<Input> = Vec::new();
-    for s in raw.split('\n') {
-        let mut cs = s.chars().collect::<Vec<char>>();
-        Regex::new("^[gw],[gw]$")
-            .map_err(|e| e.description().to_owned())?
-            .find(s)
-            .and_then(|mat| {
-                list.push(Input{
-                    input: *cs.last().unwrap(),
-                    output: *cs.first().unwrap(),
-                    link: Stack::new()
-                });
-                Some(0)
-            });
+impl Input {
+    fn push_link(&mut self, l: Link) {
+        self.link.push(l);
     }
 
-    Ok(list)
+    fn load_data(filename: &str) -> Result<Vec<Input>, String> {
+        // open file
+        let path = Path::new(&filename);
+        let display = path.display();
+        let file = File::open(&path)
+            .map_err(|e|format!("Cannot open {}", display).to_owned() 
+                + " : " + e.description())?;
+
+        // read file
+        let mut reader = BufReader::new(file);
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf)
+            .map_err(|e|"Cannot read file : ".to_owned() + e.description())?;
+    
+        // convert
+        let mut raw = String::from_utf8(buf)
+            .map_err(|e|e.description().to_owned())?;
+
+        let mut list: Vec<Input> = Vec::new();
+        for s in raw.split('\n') {
+            let mut cs = s.chars().collect::<Vec<char>>();
+            Regex::new("^[gw],[gw]$")
+                .map_err(|e| e.description().to_owned())?
+                .find(s)
+                .and_then(|mat| {
+                    list.push(Input{
+                        input: *cs.last().unwrap(),
+                        output: *cs.first().unwrap(),
+                        link: Stack::new()
+                    });
+                    Some(0)
+                });
+        }
+
+        Ok(list)
+    }
 }
 
 struct Link {
-    node_num: usize
+    dest: usize
+}
+impl Link {
+    fn new(i: usize) -> Link {
+        return Link{dest: i};
+    }
 }
 
 
@@ -110,7 +109,7 @@ fn main() {
     println!("Hello");
 
     // 対戦データのリスト
-    let input_list = LoadData("input.dat").unwrap();
+    let mut input_list = Input::load_data("input.dat").unwrap();
     let mut list_ptr: usize = 0; // 現在リストのどこを読んでいるか
 
     // オートマトンの推定結果
@@ -119,11 +118,11 @@ fn main() {
     let mut node_ptr: usize = 0;
 
     while list_ptr < input_list.len() {
-        let data = &input_list[list_ptr];
-        let mut cur_node = &node_list[node_ptr];
+        let data = &mut input_list[list_ptr];
+        //let mut cur_node = &node_list[node_ptr];
 
         // すでにパスが存在するかのチェック
-        match cur_node.getPath(data.input) {
+        match node_list[node_ptr].get_path(data.input) {
             Some(index) => {
                 let dest = &node_list[index];
                 if dest.state == data.output {
@@ -136,7 +135,18 @@ fn main() {
             }, 
             Node => {
                 // 飛び先が存在しない場合
+                let mut ptr = node_ptr as i32;
+                Node::scan(data.output, &mut ptr, &node_list);
 				
+                if ptr < 0 {
+                    // 新しくノードを作成
+                    node_list.push(Node::new(data.output));
+                    node_list[node_ptr].set_path(data.input, node_ptr+1);
+                    node_ptr += 1;
+                } else {
+                    // リンクを張って移動
+                    data.push_link(Link::new(ptr as usize));
+                }
             },
         }
         list_ptr += 1;
