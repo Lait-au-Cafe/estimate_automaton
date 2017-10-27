@@ -1,7 +1,7 @@
 extern crate regex;
 
 use std::collections::HashMap;
-use std::collections::VecDeque;
+//use std::collections::VecDeque;
 use std::error::Error;
 use std::fs::File;
 use std::io::BufReader;
@@ -41,6 +41,22 @@ impl Node {
     fn getPath(&self, c: char) -> Option<usize> {
         return self.path.get(&c).and_then(|i| Some(*i));
     }
+	
+	fn searchDestNode(
+		stat: char, 
+		ptr: &mut usize, 
+		list: &mut Vec<Node>
+	) {
+
+		while *ptr >= 0 {
+			if list[*ptr].state == stat {
+				//dest = Some(list[*ptr]);
+				break;
+			}
+			*ptr -= 1;
+		}
+		return;
+	}
 }
 
 struct Input {
@@ -120,7 +136,7 @@ fn main() {
             }, 
             Node => {
                 // 飛び先が存在しない場合
-
+				
             },
         }
         list_ptr += 1;
