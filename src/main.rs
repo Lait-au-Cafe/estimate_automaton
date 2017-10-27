@@ -57,6 +57,25 @@ impl Input {
         self.link.push(l);
     }
 
+	fn scan_link(ptr: &mut i32, list: &mut Vec<Input>) -> Option<Link> {
+		let mut res: Option<Link> = None;
+		loop {
+			if *ptr < 0 {
+				panic!("Failed to Search link. ");
+			}
+
+			let mut link_list = &mut list[*ptr as usize].link;
+			if !link_list.is_empty() {
+				res = Some(link_list.pop().unwrap());
+				break;
+			}
+
+			*ptr -= 1;
+		}
+
+		return res;
+	}
+
     fn load_data(filename: &str) -> Result<Vec<Input>, String> {
         // open file
         let path = Path::new(&filename);
@@ -118,34 +137,42 @@ fn main() {
     let mut node_ptr: usize = 0;
 
     while list_ptr < input_list.len() {
-        let data = &mut input_list[list_ptr];
-        //let mut cur_node = &node_list[node_ptr];
 
         // すでにパスが存在するかのチェック
-        match node_list[node_ptr].get_path(data.input) {
+        match node_list[node_ptr].get_path(input_list[list_ptr].input) {
             Some(index) => {
                 let dest = &node_list[index];
-                if dest.state == data.output {
+                if dest.state == input_list[list_ptr].output {
                     // すでに飛び先が存在し, データと矛盾しない場合
                     node_ptr = index;
                 } else {
                     // 飛び先が存在するがデータと矛盾する場合
-
+					// 入力リストをさかのぼってリンクを見つけて解除
+					let mut lptr = list_ptr;
+					let link: Link = 
+						Input::scan_link(&mut (lptr as i32), &mut input_list).unwrap();
+					
+					// 新しい飛び先を探す
+					let mut ptr = link.dest as i32;
+					Node::scan(input_list[list_ptr].output, &mut ptr, &node_list);
+					
                 }
             }, 
             Node => {
                 // 飛び先が存在しない場合
                 let mut ptr = node_ptr as i32;
-                Node::scan(data.output, &mut ptr, &node_list);
+                Node::scan(input_list[list_ptr].output, &mut ptr, &node_list);
 				
                 if ptr < 0 {
                     // 新しくノードを作成
-                    node_list.push(Node::new(data.output));
-                    node_list[node_ptr].set_path(data.input, node_ptr+1);
+                    node_list.push(Node::new(input_list[list_ptr].output));
+                    node_list[node_ptr].set_path(input_list[list_ptr].input, node_ptr+1);
                     node_ptr += 1;
                 } else {
                     // リンクを張って移動
-                    data.push_link(Link::new(ptr as usize));
+                    input_list[list_ptr].push_link(Link::new(ptr as usize));
+					node_list[node_ptr].set_path(input_list[list_ptr].input, ptr as usize);
+					node_ptr = ptr as usize;
                 }
             },
         }
